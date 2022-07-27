@@ -1,7 +1,6 @@
-from PyQt5.QtWidgets import QMainWindow
+from PyQt5.QtWidgets import QMainWindow, QApplication
 from main_window import *
 from addmask_main import *
-from ProgressBar import *
 import sys
 
 
@@ -30,9 +29,8 @@ class Main_GUI(Ui_MainWindow):
 
     def addMask(self):
         if self.input_file_path and self.output_file_path:
-            bar = pyqtbar()
             self.addwaterMask = AddWaterMask(self.input_file_path,self.output_file_path)
-            self.addwaterMask.run(bar)
+            self.addwaterMask.run()
 
 
 

@@ -2,6 +2,7 @@ import os
 import fitz
 from shutil import rmtree
 import img2pdf
+from PyQt5.QtWidgets import QMessageBox
 from pandas import read_excel
 from pathlib import Path
 from reportlab.lib.units import cm
@@ -21,7 +22,7 @@ from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import PDFPageAggregator
 from pdfminer.layout import LAParams, LTText
-
+from ProgressBar import pyqtbar
 
 
 class AddWaterMask(object):
@@ -30,24 +31,31 @@ class AddWaterMask(object):
         pdfmetrics.registerFont(TTFont('kaiti', 'C:/Windows/Fonts/simkai.ttf'))  # 楷体
         self.input_file_path = input_file_path
         self.output_file_path = output_file_path
-        self.TEMP_DIR = os.path.join(os.getcwd(), 'temp')
-        self.OUTPUT_DIR = output_file_path
-        self.INPUT_DIR = input_file_path
-        if not os.path.exists(self.TEMP_DIR):
-            os.mkdir(self.TEMP_DIR)
-        if not os.path.exists(self.OUTPUT_DIR):
-            os.mkdir(self.OUTPUT_DIR)
-        if not os.path.exists(self.INPUT_DIR):
-            os.mkdir(self.INPUT_DIR)
-        self.word_abs_path = os.path.join(input_file_path ,[x for x in os.listdir(input_file_path) if
-                                                            x.endswith('.docx') or x.endswith('.doc')][0])
-        self.excel_abs_path = os.path.join(input_file_path , [x for x in os.listdir(input_file_path) if
-                                                        x.endswith('.xlsx') or x.endswith('.xls')][0])
-        self.temp_word_abs_path = os.path.join(self.TEMP_DIR,os.path.basename(self.word_abs_path))
-        self.temp_pdf_abs_path = os.path.join(self.TEMP_DIR,
-                                         os.path.basename(self.word_abs_path).replace('.docx', '.pdf').replace('.doc',
-                                                                                                               '.pdf'))
-        self.persons = read_excel(self.excel_abs_path).to_dict('records')
+        word_exist = len([x for x in os.listdir(input_file_path) if x.endswith('.docx') or x.endswith('.doc')])
+        excel_exist = len([x for x in os.listdir(input_file_path) if x.endswith('.xlsx') or x.endswith('.xls')])
+        if word_exist == 0 or excel_exist == 0:
+            QMessageBox.critical(None, "错误", "所选输入文件所在的文件夹未包含word文档或excel文档")
+            self.flag = 0
+        else:
+            self.flag = 1
+            self.TEMP_DIR = os.path.join(os.getcwd(), 'temp')
+            self.OUTPUT_DIR = output_file_path
+            self.INPUT_DIR = input_file_path
+            if not os.path.exists(self.TEMP_DIR):
+                os.mkdir(self.TEMP_DIR)
+            if not os.path.exists(self.OUTPUT_DIR):
+                os.mkdir(self.OUTPUT_DIR)
+            if not os.path.exists(self.INPUT_DIR):
+                os.mkdir(self.INPUT_DIR)
+            self.word_abs_path = os.path.join(input_file_path ,[x for x in os.listdir(input_file_path) if
+                                                                x.endswith('.docx') or x.endswith('.doc')][0])
+            self.excel_abs_path = os.path.join(input_file_path , [x for x in os.listdir(input_file_path) if
+                                                            x.endswith('.xlsx') or x.endswith('.xls')][0])
+            self.temp_word_abs_path = os.path.join(self.TEMP_DIR,os.path.basename(self.word_abs_path))
+            self.temp_pdf_abs_path = os.path.join(self.TEMP_DIR,
+                                             os.path.basename(self.word_abs_path).replace('.docx', '.pdf').replace('.doc',
+                                                                                                                   '.pdf'))
+            self.persons = read_excel(self.excel_abs_path).to_dict('records')
 
     def convert_word2pdf(self):
         app = DispatchEx('Word.Application')
@@ -165,47 +173,49 @@ class AddWaterMask(object):
         writer_obj._encrypt = writer_obj._addObject(encrypt)
         writer_obj._encrypt_key = key
 
-    def run(self,bar):
-        ##
-        total_number = len(self.persons)
-        task_id = 1
-        self.convert_word2pdf()
-        bar.set_value(task_id, total_number, 5)
-        for person in self.persons:
-            bar.set_value(task_id, total_number, 10)
-            wtmk_content = '仅供%s-%s参考' % (person['fund_company'], person['reseacher'])
-            input_pdf = self.temp_pdf_abs_path
-            output_pdf = os.path.join(self.TEMP_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
-                'fund_company'] + '_' + person['reseacher'] + "_tmp" + '.pdf')
-            self.create_watermark(wtmk_content,input_pdf)
-            bar.set_value(task_id, total_number, 30)
-            self.add_watermark2pdf(input_pdf, output_pdf, self.TEMP_DIR)
-            bar.set_value(task_id, total_number, 60)
-            # To get better resolution
-            zoom_x = 4.0  # horizontal zoom
-            zoom_y = 4.0  # vertical zoom
-            mat = fitz.Matrix(zoom_x, zoom_y)  # zoom factor 2 in each dimension
-            doc = fitz.open(output_pdf)  # open document
-            for page in doc:
-                pix = page.get_pixmap(matrix=mat)  # render page to an image
-                pix.save(os.path.join(self.TEMP_DIR,"page-%i.png") % page.number)  # store image as a PNG
-            doc.close()
-            bar.set_value(task_id, total_number, 80)
-            output_pdf = os.path.join(self.TEMP_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
-                'fund_company'] + '_' + person['reseacher'] + '.pdf')
-            with open(output_pdf, "wb") as f:
-                f.write(img2pdf.convert([str(path) for path in Path(self.TEMP_DIR).glob('*.png')]))
-                f.close()
-            bar.set_value(task_id, total_number, 93)
-            unmeta = PdfFileReader(output_pdf,strict=False)
-            writer = PdfFileWriter()
-            writer.appendPagesFromReader(unmeta)
-            bar.set_value(task_id, total_number, 96)
-            self.encrypt(writer, '', '123')
-            final_pdf = os.path.join(self.OUTPUT_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
-                'fund_company'] + '_' + person['reseacher'] + '.pdf')
-            with open(final_pdf, 'wb') as fp:
-                writer.write(fp)
-            bar.set_value(task_id, total_number, 99)
-            task_id = task_id + 1
-        rmtree(self.TEMP_DIR)
+    def run(self):
+        if self.flag == 1:
+            ##
+            bar = pyqtbar()
+            total_number = len(self.persons)
+            task_id = 1
+            self.convert_word2pdf()
+            bar.set_value(task_id, total_number, 5)
+            for person in self.persons:
+                bar.set_value(task_id, total_number, 10)
+                wtmk_content = '仅供%s-%s参考' % (person['fund_company'], person['reseacher'])
+                input_pdf = self.temp_pdf_abs_path
+                output_pdf = os.path.join(self.TEMP_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
+                    'fund_company'] + '_' + person['reseacher'] + "_tmp" + '.pdf')
+                self.create_watermark(wtmk_content,input_pdf)
+                bar.set_value(task_id, total_number, 30)
+                self.add_watermark2pdf(input_pdf, output_pdf, self.TEMP_DIR)
+                bar.set_value(task_id, total_number, 60)
+                # To get better resolution
+                zoom_x = 4.0  # horizontal zoom
+                zoom_y = 4.0  # vertical zoom
+                mat = fitz.Matrix(zoom_x, zoom_y)  # zoom factor 2 in each dimension
+                doc = fitz.open(output_pdf)  # open document
+                for page in doc:
+                    pix = page.get_pixmap(matrix=mat)  # render page to an image
+                    pix.save(os.path.join(self.TEMP_DIR,"page-%i.png") % page.number)  # store image as a PNG
+                doc.close()
+                bar.set_value(task_id, total_number, 80)
+                output_pdf = os.path.join(self.TEMP_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
+                    'fund_company'] + '_' + person['reseacher'] + '.pdf')
+                with open(output_pdf, "wb") as f:
+                    f.write(img2pdf.convert([str(path) for path in Path(self.TEMP_DIR).glob('*.png')]))
+                    f.close()
+                bar.set_value(task_id, total_number, 93)
+                unmeta = PdfFileReader(output_pdf,strict=False)
+                writer = PdfFileWriter()
+                writer.appendPagesFromReader(unmeta)
+                bar.set_value(task_id, total_number, 96)
+                self.encrypt(writer, '', '123')
+                final_pdf = os.path.join(self.OUTPUT_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
+                    'fund_company'] + '_' + person['reseacher'] + '.pdf')
+                with open(final_pdf, 'wb') as fp:
+                    writer.write(fp)
+                bar.set_value(task_id, total_number, 99)
+                task_id = task_id + 1
+            rmtree(self.TEMP_DIR)
