@@ -1,7 +1,7 @@
 import os
 import fitz
 from shutil import rmtree
-from img2pdf import convert as i2pconvert
+import img2pdf
 from pandas import read_excel
 from pathlib import Path
 from reportlab.lib.units import cm
@@ -10,10 +10,6 @@ from win32com.client import DispatchEx
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from PyPDF2 import PdfFileWriter, PdfFileReader
-# from docx import Document
-# from docx.shared import Pt  # 设置像素、缩进等
-# from docx.shared import RGBColor  # 设置字体颜色
-# from docx.oxml.ns import qn
 from hashlib import md5
 from PyPDF4 import PdfFileReader, PdfFileWriter
 from PyPDF4.generic import NameObject, DictionaryObject, ArrayObject, NumberObject, ByteStringObject
@@ -25,6 +21,7 @@ from pdfminer.pdfparser import PDFParser
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import PDFPageAggregator
 from pdfminer.layout import LAParams, LTText
+
 
 
 class AddWaterMask(object):
@@ -108,7 +105,7 @@ class AddWaterMask(object):
                                 c.drawString(8.5*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
                                 c.drawString(14*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
                             cnt = cnt + 1
-                        if line.width < 300 and (pre - cur > 22):
+                        if line.width < 300 and (pre - cur > 22) and line.bbox[0] < 95 and line.width > 20:
                                 c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=1)
                                 c.setFont('kaiti', 6)
                                 c.drawString((3+line.width/26.5)*cm, ((line.bbox[3] - value_est1) / space_factor - space/2) * cm, content)
@@ -168,15 +165,22 @@ class AddWaterMask(object):
         writer_obj._encrypt = writer_obj._addObject(encrypt)
         writer_obj._encrypt_key = key
 
-    def run(self):
+    def run(self,bar):
+        ##
+        total_number = len(self.persons)
+        task_id = 1
         self.convert_word2pdf()
+        bar.set_value(task_id, total_number, 5)
         for person in self.persons:
+            bar.set_value(task_id, total_number, 10)
             wtmk_content = '仅供%s-%s参考' % (person['fund_company'], person['reseacher'])
             input_pdf = self.temp_pdf_abs_path
             output_pdf = os.path.join(self.TEMP_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
                 'fund_company'] + '_' + person['reseacher'] + "_tmp" + '.pdf')
             self.create_watermark(wtmk_content,input_pdf)
+            bar.set_value(task_id, total_number, 30)
             self.add_watermark2pdf(input_pdf, output_pdf, self.TEMP_DIR)
+            bar.set_value(task_id, total_number, 60)
             # To get better resolution
             zoom_x = 4.0  # horizontal zoom
             zoom_y = 4.0  # vertical zoom
@@ -186,17 +190,22 @@ class AddWaterMask(object):
                 pix = page.get_pixmap(matrix=mat)  # render page to an image
                 pix.save(os.path.join(self.TEMP_DIR,"page-%i.png") % page.number)  # store image as a PNG
             doc.close()
+            bar.set_value(task_id, total_number, 80)
             output_pdf = os.path.join(self.TEMP_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
                 'fund_company'] + '_' + person['reseacher'] + '.pdf')
             with open(output_pdf, "wb") as f:
-                f.write(i2pconvert.convert([str(path) for path in Path(self.TEMP_DIR).glob('*.png')]))
+                f.write(img2pdf.convert([str(path) for path in Path(self.TEMP_DIR).glob('*.png')]))
                 f.close()
+            bar.set_value(task_id, total_number, 93)
             unmeta = PdfFileReader(output_pdf,strict=False)
             writer = PdfFileWriter()
             writer.appendPagesFromReader(unmeta)
+            bar.set_value(task_id, total_number, 96)
             self.encrypt(writer, '', '123')
             final_pdf = os.path.join(self.OUTPUT_DIR, os.path.splitext(os.path.basename(self.word_abs_path))[0] + '_' + person[
                 'fund_company'] + '_' + person['reseacher'] + '.pdf')
             with open(final_pdf, 'wb') as fp:
                 writer.write(fp)
+            bar.set_value(task_id, total_number, 99)
+            task_id = task_id + 1
         rmtree(self.TEMP_DIR)
