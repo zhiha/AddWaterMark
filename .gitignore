@@ -1,0 +1,8 @@
+
+*.spec
+*.txt
+
+dist/*
+.idea/*
+input/*
+result/*
