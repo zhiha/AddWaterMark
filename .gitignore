@@ -6,3 +6,5 @@ dist/*
 .idea/*
 input/*
 result/*
+
+src/__pycache__/*
