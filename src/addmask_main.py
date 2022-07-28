@@ -62,6 +62,7 @@ class AddWaterMask(object):
         app.Visible = 0
         app.DisplayAlerts = 0
         doc = app.Documents.Open(self.word_abs_path)
+        # raise ValueError('A very specific bad thing happened.')
         doc.SaveAs(self.temp_pdf_abs_path, FileFormat=17)
         doc.Close()
         app.Quit()
@@ -74,50 +75,43 @@ class AddWaterMask(object):
         laparams = LAParams()
         device = PDFPageAggregator(rsrcmgr, laparams=laparams)
         interpreter = PDFPageInterpreter(rsrcmgr, device)
+
         space = 0.825
-        pre_process = 0
-        value_est1 = 0
-        space_factor = 0
+        value_est1 = 763.665
+        value_est2 = 740.265
+        space_raw = value_est1 - value_est2
+        space_factor = space_raw / space
         page_num = 0
         for page in PDFPage.create_pages(doc):
-            c = canvas.Canvas(os.path.join(self.TEMP_DIR, 'watermark-%i.pdf') % page_num , pagesize=(21 * cm, 29.7 * cm))
-            c.translate(0 * cm, 27 * cm)
+            c = canvas.Canvas(os.path.join(self.TEMP_DIR, 'watermark-%i.pdf') % page_num, pagesize=(21 * cm, 29.7 * cm))
+            c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=0.4)  # 淡
+            page_num = page_num + 1
+            c.translate(0 * cm, 27 * cm)  # 移动坐标原点(坐标系左下为(0,0)))
+            c.setFont('kaiti', 10.5)
             interpreter.process_page(page)
             layout = device.get_result()
-            page_num = page_num + 1
-            pre = 800
+            pre = 790
             cnt = 0
-            for textbox in layout:
-                if pre_process == 2:
-                    break
-                if isinstance(textbox, LTText):
-                    for line in textbox:
-                        if pre_process < 2:
-                            if pre_process == 0:
-                                value_est1 = line.bbox[3]
-                            if pre_process == 1:
-                                value_est2 = line.bbox[3]
-                                space_raw = value_est1 - value_est2
-                                space_factor = space_raw / space
-                            pre_process = pre_process + 1
-                        else: break
             for textbox in layout:
                 if isinstance(textbox, LTText):
                     for line in textbox:
                         cur = line.bbox[3]
-                        if line.bbox[0] < 95 and (pre - cur > 22):
-                            if cnt % 3 == 0 :
-                                c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=0.4)
+                        if (pre - cur > 22):
+                            if cnt % 3 == 0:
+                                c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=0.4)  # 淡
                                 c.setFont('kaiti', 10.5)
-                                c.drawString(3*cm, ((line.bbox[3]-value_est1) / space_factor)*cm, content)
-                                c.drawString(8.5*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
-                                c.drawString(14*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                                if line.bbox[0] < 340:
+                                    c.drawString(3 * cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                                    c.drawString(8.5 * cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                                c.drawString(14 * cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
                             cnt = cnt + 1
-                        if line.width < 300 and (pre - cur > 22) and line.bbox[0] < 95 and line.width > 20:
-                                c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=1)
-                                c.setFont('kaiti', 6)
-                                c.drawString((3+line.width/26.5)*cm, ((line.bbox[3] - value_est1) / space_factor - space/2) * cm, content)
-                        pre = cur
+                        if line.width < 300 and (pre - cur > 22) and line.bbox[0] < 120 and line.width > 20:
+                            c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=1)  # 淡
+                            c.setFont('kaiti', 6)
+                            c.drawString((3 + (line.width + line.bbox[0] - 90) / 26.5) * cm,
+                                         ((line.bbox[3] - value_est1) / space_factor - space / 2) * cm, content)
+                        if pre > cur:
+                            pre = cur
             c.save()
         fp.close()
 

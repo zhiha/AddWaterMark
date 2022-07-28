@@ -1,3 +1,16 @@
+# 使用者
+Word格式说明
+
+全文字体类型：等线（正文）
+全文字体大小：五号
+全文行间距：1.5倍
+
+Excel格式说明
+
+第一行 由 security_company	fund_company  reseacher 三列构成
+下面写对应的信息
+
+
 # 开发者：
 
 	建议开发时安装Anaconda（Python环境），利用Anaconda创建Python虚拟环境

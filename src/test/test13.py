@@ -74,12 +74,11 @@ def create_watermark(content,target_path):
     interpreter = PDFPageInterpreter(rsrcmgr, device)
 
     space = 0.825
-    pre_process = 0
-    value_est1 = 0
-    value_est2 = 0
-    space_raw = 0
-    space_factor = 0
-
+    # pre_process = 0
+    value_est1 = 763.665
+    value_est2 = 740.265
+    space_raw = value_est1 - value_est2
+    space_factor = space_raw / space
     page_num = 0
     for page in PDFPage.create_pages(doc):
         c = canvas.Canvas(os.path.join(TEMP_DIR, 'watermark-%i.pdf') % page_num , pagesize=(21 * cm, 29.7 * cm))
@@ -89,41 +88,65 @@ def create_watermark(content,target_path):
         c.setFont('kaiti', 10.5)
         interpreter.process_page(page)
         layout = device.get_result()
-        pre = 800
-        cur = 0
+        pre = 790
+        # cur = 0
         cnt = 0
+        # for textbox in layout:
+        #     if pre_process == 2:
+        #         break
+        #     if isinstance(textbox, LTText):
+        #         for line in textbox:
+        #             if line.bbox[3] > 770.0:
+        #                 value_est1 = 763.665
+        #                 value_est2 = 740.265
+        #                 space_raw = value_est1 - value_est2
+        #                 space_factor = space_raw / space
+        #                 pre_process = 2
+        #                 break
+        #             if pre_process < 2:
+        #                 if pre_process == 0:
+        #                     value_est1 = line.bbox[3]
+        #                 if pre_process == 1:
+        #                     value_est2 = line.bbox[3]
+        #                     space_raw = value_est1 - value_est2
+        #                     space_factor = space_raw / space
+        #                 pre_process = pre_process + 1
+        #             else: break
         for textbox in layout:
-            if pre_process == 2:
-                break
             if isinstance(textbox, LTText):
                 for line in textbox:
-                    if pre_process < 2:
-                        if pre_process == 0:
-                            value_est1 = line.bbox[3]
-                        if pre_process == 1:
-                            value_est2 = line.bbox[3]
-                            space_raw = value_est1 - value_est2
-                            space_factor = space_raw / space
-                        pre_process = pre_process + 1
-                    else: break
-        for textbox in layout:
-            if isinstance(textbox, LTText):
-                for line in textbox:
-                    # print("line site:", line.bbox[0], "y:", line.bbox[3], line.width, line.height)
+                    print("line site:", line.bbox[0], "y:", line.bbox[3], line.width, line.height)
+                    for char in line:
+                        # If the char is a line-break or an empty space, the word is complete
+                        if isinstance(char, LTAnno) or char.get_text() == ' ':
+                            pass
+                        elif isinstance(char, LTChar):
+                            print("坐标 x:", char.bbox[0], "y:", char.bbox[3], " ||| ", char.get_text())
                     cur = line.bbox[3]
-                    if line.bbox[0] < 95 and (pre - cur > 22):
-                        if cnt % 3 == 0 :
+                    # if (line.bbox[0] < 115 or (line.bbox[0] < 115)) and (pre - cur > 22) :
+                    # if line.bbox[0] < 200 and (pre - cur > 22):
+                    #     if cnt % 3 == 0 :
+                    #         c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=0.4)  # 淡
+                    #         c.setFont('kaiti', 10.5)
+                    #         c.drawString(3*cm, ((line.bbox[3]-value_est1) / space_factor)*cm, content)
+                    #         c.drawString(8.5*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                    #         c.drawString(14*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                    #     cnt = cnt + 1
+                    if (pre - cur > 22):
+                        if cnt % 3 == 0:
                             c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=0.4)  # 淡
                             c.setFont('kaiti', 10.5)
-                            c.drawString(3*cm, ((line.bbox[3]-value_est1) / space_factor)*cm, content)
-                            c.drawString(8.5*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
-                            c.drawString(14*cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                            if line.bbox[0] < 340:
+                                c.drawString(3 * cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                                c.drawString(8.5 * cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
+                            c.drawString(14 * cm, ((line.bbox[3] - value_est1) / space_factor) * cm, content)
                         cnt = cnt + 1
-                    if line.width < 300 and (pre - cur > 22):
+                    if line.width < 300 and (pre - cur > 22) and line.bbox[0] < 120 and line.width > 20:
                             c.setFillColorRGB(190 / 255, 190 / 255, 190 / 255, alpha=1)  # 淡
                             c.setFont('kaiti', 6)
-                            c.drawString((3+line.width/26.5)*cm, ((line.bbox[3] - value_est1) / space_factor - space/2) * cm, content)
-                    pre = cur
+                            c.drawString((3+(line.width+line.bbox[0]-90)/26.5)*cm, ((line.bbox[3] - value_est1) / space_factor - space/2) * cm, content)
+                    if pre > cur:
+                        pre = cur
         c.save()  # 关闭并保存pdf文件
     fp.close()
 

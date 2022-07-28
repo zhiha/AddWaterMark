@@ -2,8 +2,10 @@
 *.spec
 *.txt
 
+build/*
 dist/*
 .idea/*
+*.zip
 input/*
 result/*
 
